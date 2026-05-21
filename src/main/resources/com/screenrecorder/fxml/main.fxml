@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.shape.Circle?>
+
+<VBox xmlns="http://javafx.com/javafx/17"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.screenrecorder.ui.MainController"
+      styleClass="root-container"
+      prefWidth="430"
+      spacing="0">
+
+    <!-- ═══════════════════════════════ HEADER ══════════════════════════════ -->
+    <HBox styleClass="header" alignment="CENTER_LEFT" spacing="10">
+        <padding><Insets top="18" right="22" bottom="18" left="22"/></padding>
+
+        <HBox alignment="CENTER_LEFT" spacing="8">
+            <Circle radius="7" styleClass="logo-dot"/>
+            <Label text="PixelCapture" styleClass="app-title"/>
+        </HBox>
+
+        <Region HBox.hgrow="ALWAYS"/>
+
+        <Button fx:id="settingsButton" text="⚙" styleClass="icon-button"
+                onAction="#openSettings" focusTraversable="false"/>
+    </HBox>
+
+    <!-- ═══════════════════════════ STATUS BAR ══════════════════════════════ -->
+    <HBox styleClass="status-bar" alignment="CENTER_LEFT" spacing="10">
+        <padding><Insets top="12" right="22" bottom="12" left="22"/></padding>
+
+        <Circle fx:id="statusDot" radius="6" styleClass="status-dot status-idle"/>
+        <Label fx:id="statusLabel" text="READY" styleClass="status-label"/>
+
+        <Region HBox.hgrow="ALWAYS"/>
+
+        <Label fx:id="timerLabel" text="00:00:00" styleClass="timer-label"/>
+    </HBox>
+
+    <!-- ═══════════════════════════ CAPTURE CARD ════════════════════════════ -->
+    <VBox styleClass="card" spacing="14">
+        <padding><Insets top="18" right="22" bottom="18" left="22"/></padding>
+        <VBox.margin><Insets top="12" right="16" bottom="0" left="16"/></VBox.margin>
+
+        <Label text="CAPTURE" styleClass="section-label"/>
+
+        <!-- Area row -->
+        <HBox alignment="CENTER_LEFT" spacing="10">
+            <Label text="Area" prefWidth="55" styleClass="field-label"/>
+            <ComboBox fx:id="captureAreaCombo" HBox.hgrow="ALWAYS" maxWidth="Infinity"
+                      styleClass="combo-field"/>
+            <Button fx:id="selectAreaButton" text="Select Region"
+                    styleClass="secondary-button" onAction="#onSelectArea"/>
+        </HBox>
+
+        <!-- Audio row -->
+        <HBox alignment="CENTER_LEFT" spacing="10">
+            <Label text="Audio" prefWidth="55" styleClass="field-label"/>
+            <ComboBox fx:id="audioSourceCombo" HBox.hgrow="ALWAYS" maxWidth="Infinity"
+                      styleClass="combo-field"/>
+        </HBox>
+    </VBox>
+
+    <!-- ═══════════════════════════ OUTPUT CARD ═════════════════════════════ -->
+    <VBox styleClass="card" spacing="14">
+        <padding><Insets top="18" right="22" bottom="18" left="22"/></padding>
+        <VBox.margin><Insets top="10" right="16" bottom="0" left="16"/></VBox.margin>
+
+        <Label text="OUTPUT" styleClass="section-label"/>
+
+        <HBox alignment="CENTER_LEFT" spacing="10">
+            <TextField fx:id="outputFolderField" HBox.hgrow="ALWAYS"
+                       editable="false" styleClass="path-field"
+                       promptText="Select output folder…"/>
+            <Button text="Browse" styleClass="secondary-button" onAction="#onBrowseOutput"/>
+        </HBox>
+    </VBox>
+
+    <!-- ═══════════════════════════ CONTROLS ════════════════════════════════ -->
+    <VBox styleClass="controls-section" spacing="12" alignment="CENTER">
+        <padding><Insets top="22" right="22" bottom="18" left="22"/></padding>
+
+        <Button fx:id="startButton" text="▶   Start Recording"
+                styleClass="start-button" maxWidth="Infinity"
+                onAction="#onStartRecording"/>
+
+        <HBox spacing="12">
+            <Button fx:id="pauseButton" text="⏸  Pause"
+                    styleClass="pause-button" disable="true"
+                    HBox.hgrow="ALWAYS" maxWidth="Infinity"
+                    onAction="#onPauseRecording"/>
+            <Button fx:id="stopButton" text="■  Stop"
+                    styleClass="stop-button" disable="true"
+                    HBox.hgrow="ALWAYS" maxWidth="Infinity"
+                    onAction="#onStopRecording"/>
+        </HBox>
+
+        <!--
+            Shown during/after recording. Controller sets visible + managed in code.
+        -->
+        <Label fx:id="recordingPathLabel" text=""
+               styleClass="recording-path-label"
+               wrapText="false"/>
+    </VBox>
+
+    <!-- ═══════════════════════════ FOOTER ══════════════════════════════════ -->
+    <HBox styleClass="footer" alignment="CENTER_LEFT" spacing="8">
+        <padding><Insets top="10" right="22" bottom="14" left="22"/></padding>
+
+        <Label fx:id="fpsLabel" text="30 FPS" styleClass="footer-info"/>
+        <Label text="·" styleClass="footer-sep"/>
+        <Label fx:id="qualityLabel" text="High Quality" styleClass="footer-info"/>
+
+        <Region HBox.hgrow="ALWAYS"/>
+
+        <Hyperlink text="Settings" styleClass="footer-link" onAction="#openSettings"/>
+    </HBox>
+
+</VBox>

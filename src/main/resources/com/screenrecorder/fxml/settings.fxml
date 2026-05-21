@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/17"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.screenrecorder.ui.SettingsController"
+      styleClass="root-container settings-root"
+      prefWidth="460"
+      spacing="0">
+
+    <!-- ══════════════════════════ HEADER ═══════════════════════════════════ -->
+    <HBox styleClass="header" alignment="CENTER_LEFT">
+        <padding><Insets top="18" right="22" bottom="18" left="22"/></padding>
+        <Label text="Settings" styleClass="app-title"/>
+    </HBox>
+
+    <ScrollPane fitToWidth="true" styleClass="settings-scroll" VBox.vgrow="ALWAYS">
+        <VBox spacing="10">
+            <padding><Insets top="14" right="16" bottom="14" left="16"/></padding>
+
+            <!-- ─────────────────────── VIDEO ──────────────────────────── -->
+            <VBox styleClass="card" spacing="16">
+                <padding><Insets top="18" right="20" bottom="18" left="20"/></padding>
+
+                <Label text="VIDEO" styleClass="section-label"/>
+
+                <HBox alignment="CENTER_LEFT" spacing="10">
+                    <Label text="Quality" prefWidth="100" styleClass="field-label"/>
+                    <ComboBox fx:id="qualityCombo" HBox.hgrow="ALWAYS" maxWidth="Infinity"
+                              styleClass="combo-field"/>
+                </HBox>
+
+                <HBox alignment="CENTER_LEFT" spacing="10">
+                    <Label text="Frame Rate" prefWidth="100" styleClass="field-label"/>
+                    <ComboBox fx:id="fpsCombo" HBox.hgrow="ALWAYS" maxWidth="Infinity"
+                              styleClass="combo-field"/>
+                    <Label text="FPS" styleClass="field-label"/>
+                </HBox>
+            </VBox>
+
+            <!-- ─────────────────────── AUDIO ──────────────────────────── -->
+            <VBox styleClass="card" spacing="16">
+                <padding><Insets top="18" right="20" bottom="18" left="20"/></padding>
+
+                <Label text="AUDIO" styleClass="section-label"/>
+
+                <HBox alignment="CENTER_LEFT" spacing="10">
+                    <CheckBox fx:id="captureAudioCheck" text="Record microphone audio"
+                              styleClass="settings-check"/>
+                </HBox>
+
+                <HBox alignment="CENTER_LEFT" spacing="10">
+                    <Label text="Device" prefWidth="100" styleClass="field-label"/>
+                    <ComboBox fx:id="audioDeviceCombo" HBox.hgrow="ALWAYS" maxWidth="Infinity"
+                              styleClass="combo-field"/>
+                </HBox>
+            </VBox>
+
+            <!-- ─────────────────────── HOTKEYS ────────────────────────── -->
+            <VBox styleClass="card" spacing="16">
+                <padding><Insets top="18" right="20" bottom="18" left="20"/></padding>
+
+                <HBox alignment="CENTER_LEFT" spacing="6">
+                    <Label text="HOTKEYS" styleClass="section-label"/>
+                    <Label text="(click to rebind — coming soon)" styleClass="section-label-hint"/>
+                </HBox>
+
+                <HBox alignment="CENTER_LEFT" spacing="10">
+                    <Label text="Start" prefWidth="100" styleClass="field-label"/>
+                    <TextField fx:id="hotkeyStartField" HBox.hgrow="ALWAYS"
+                               styleClass="hotkey-field" promptText="e.g. Ctrl+Shift+R"/>
+                </HBox>
+                <HBox alignment="CENTER_LEFT" spacing="10">
+                    <Label text="Stop" prefWidth="100" styleClass="field-label"/>
+                    <TextField fx:id="hotkeyStopField" HBox.hgrow="ALWAYS"
+                               styleClass="hotkey-field" promptText="e.g. Ctrl+Shift+S"/>
+                </HBox>
+                <HBox alignment="CENTER_LEFT" spacing="10">
+                    <Label text="Pause" prefWidth="100" styleClass="field-label"/>
+                    <TextField fx:id="hotkeyPauseField" HBox.hgrow="ALWAYS"
+                               styleClass="hotkey-field" promptText="e.g. Ctrl+Shift+P"/>
+                </HBox>
+            </VBox>
+
+            <!-- ─────────────────────── THEME ──────────────────────────── -->
+            <VBox styleClass="card" spacing="16">
+                <padding><Insets top="18" right="20" bottom="18" left="20"/></padding>
+
+                <Label text="APPEARANCE" styleClass="section-label"/>
+
+                <HBox spacing="24" alignment="CENTER_LEFT">
+                    <fx:define>
+                        <ToggleGroup fx:id="themeGroup"/>
+                    </fx:define>
+                    <RadioButton fx:id="themeAutoRadio"  text="Auto"
+                                 toggleGroup="$themeGroup" styleClass="theme-radio"/>
+                    <RadioButton fx:id="themeDarkRadio"  text="Dark"
+                                 toggleGroup="$themeGroup" styleClass="theme-radio"/>
+                    <RadioButton fx:id="themeLightRadio" text="Light"
+                                 toggleGroup="$themeGroup" styleClass="theme-radio"/>
+                </HBox>
+            </VBox>
+        </VBox>
+    </ScrollPane>
+
+    <!-- ══════════════════════════ BUTTONS ══════════════════════════════════ -->
+    <HBox styleClass="footer settings-footer" alignment="CENTER_RIGHT" spacing="12">
+        <padding><Insets top="14" right="22" bottom="14" left="22"/></padding>
+
+        <Button text="Cancel" styleClass="secondary-button" onAction="#onCancel"/>
+        <Button text="Save Changes" styleClass="start-button settings-save" onAction="#onSave"/>
+    </HBox>
+
+</VBox>
