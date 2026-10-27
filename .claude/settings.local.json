@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Stefan\\\\Desktop\\\\PixelCapture\" -ErrorAction SilentlyContinue | Select-Object Name; if \\(-not \\(Test-Path \"C:\\\\Users\\\\Stefan\\\\Desktop\\\\PixelCapture\"\\)\\) { \"DOES NOT EXIST\" } else { \"EXISTS\" })",
-      "PowerShell(Get-ChildItem -Recurse \"C:\\\\Users\\\\Stefan\\\\Desktop\\\\PixelCapture\\\\src\" | Where-Object {!$_.PSIsContainer} | Select-Object -ExpandProperty FullName)",
-      "Bash(awk '{print $NF}')"
-    ]
-  }
-}

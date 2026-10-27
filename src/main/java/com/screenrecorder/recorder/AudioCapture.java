@@ -31,43 +31,68 @@ public class AudioCapture {
 
     public void start(FFmpegFrameRecorder recorder, Object recorderLock)
             throws LineUnavailableException {
+        // Little-endian PCM is the native format for Windows DirectSound / WASAPI.
+        // Big-endian was used previously but isLineSupported() returns false on many
+        // Windows systems for big-endian PCM, causing silent audio failure.
         AudioFormat format = new AudioFormat(
             AudioFormat.Encoding.PCM_SIGNED,
             SAMPLE_RATE, 16, CHANNELS, CHANNELS * 2, SAMPLE_RATE,
-            true  // big-endian
+            false  // little-endian (native on Windows)
         );
         DataLine.Info info = new DataLine.Info(TargetDataLine.class, format);
         if (!AudioSystem.isLineSupported(info)) {
-            throw new LineUnavailableException("No supported microphone line found");
+            throw new LineUnavailableException(
+                "No supported microphone line for format: " + format
+                + "\nCheck Windows Settings → Privacy → Microphone → allow desktop apps");
         }
 
         line = (TargetDataLine) AudioSystem.getLine(info);
         line.open(format, BUFFER_BYTES * 4);
         line.start();
         running = true;
+        System.out.println("[AudioCapture] TargetDataLine opened: " + format);
 
         captureThread = new Thread(() -> {
-            byte[] buffer = new byte[BUFFER_BYTES];
+            byte[] buffer  = new byte[BUFFER_BYTES];
+            // Track how many audio frames (samples per channel) have been sent so
+            // we can compute a monotonically-increasing PTS independent of the
+            // video thread's setTimestamp() calls.  FFmpegFrameRecorder uses
+            // recorder.timestamp for both audio and video PTS, so without this fix
+            // every recordSamples() call would get the video thread's last timestamp,
+            // producing non-monotonic audio PTS that FFmpeg silently discards.
+            long audioFrameCount = 0;
+
             while (running) {
                 int read = line.read(buffer, 0, buffer.length);
                 if (read <= 0) continue;
 
-                short[] shorts = new short[read / 2];
+                int shortsCount = read / 2; // total 16-bit values across all channels
+                short[] shorts = new short[shortsCount];
                 ByteBuffer.wrap(buffer, 0, read)
-                          .order(ByteOrder.BIG_ENDIAN)
+                          .order(ByteOrder.LITTLE_ENDIAN)
                           .asShortBuffer()
                           .get(shorts);
+
+                // Audio PTS in microseconds: audioFrameCount / sampleRate * 1_000_000
+                long audioTs = audioFrameCount * 1_000_000L / SAMPLE_RATE;
                 try {
                     synchronized (recorderLock) {
+                        // setTimestamp must be called inside the lock so it is
+                        // mutually exclusive with the video thread's setTimestamp
+                        // + record() pair — both threads always set before writing.
+                        recorder.setTimestamp(audioTs);
                         recorder.recordSamples(SAMPLE_RATE, CHANNELS, ShortBuffer.wrap(shorts));
                     }
                 } catch (Exception e) {
                     LOG.log(Level.FINE, "Audio record error", e);
                 }
+                // Advance by the number of per-channel frames in this buffer
+                audioFrameCount += shortsCount / CHANNELS;
             }
         }, "audio-capture");
         captureThread.setDaemon(true);
         captureThread.start();
+        System.out.println("[AudioCapture] Capture thread started");
     }
 
     public void stop() {
@@ -87,7 +112,7 @@ public class AudioCapture {
         List<String> names = new ArrayList<>();
         names.add("Default Microphone");
         try {
-            AudioFormat probe = new AudioFormat(44_100, 16, 2, true, true);
+            AudioFormat probe = new AudioFormat(44_100, 16, 2, true, false); // little-endian
             DataLine.Info info = new DataLine.Info(TargetDataLine.class, probe);
             for (Mixer.Info mi : AudioSystem.getMixerInfo()) {
                 try {

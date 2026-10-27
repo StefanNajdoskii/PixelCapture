@@ -5,11 +5,15 @@ import com.screenrecorder.models.RecordingConfig;
 import com.screenrecorder.models.RecordingState;
 import com.screenrecorder.models.VideoQuality;
 import com.screenrecorder.recorder.AudioCapture;
+import com.screenrecorder.recorder.ScreenCapture;
+import com.screenrecorder.services.HotkeyManager;
 import com.screenrecorder.services.RecordingService;
 import com.screenrecorder.services.SystemTrayService;
 import com.screenrecorder.utils.FileUtils;
 import com.screenrecorder.utils.SettingsManager;
 import com.screenrecorder.utils.ThemeManager;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -21,11 +25,16 @@ import javafx.scene.shape.Circle;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 
+import javax.imageio.ImageIO;
 import java.awt.Rectangle;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.net.URL;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ResourceBundle;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -34,7 +43,7 @@ public class MainController implements Initializable {
 
     private static final Logger LOG = Logger.getLogger(MainController.class.getName());
 
-    // ── FXML bindings ────────────────────────────────────────────────────────
+    // ── FXML bindings ─────────────────────────────────────────────────────────
     @FXML private Circle    statusDot;
     @FXML private Label     statusLabel;
     @FXML private Label     timerLabel;
@@ -43,13 +52,14 @@ public class MainController implements Initializable {
     @FXML private ComboBox<String> audioSourceCombo;
     @FXML private TextField outputFolderField;
     @FXML private Button    startButton;
+    @FXML private Button    screenshotButton;
     @FXML private Button    pauseButton;
     @FXML private Button    stopButton;
     @FXML private Label     fpsLabel;
     @FXML private Label     qualityLabel;
     @FXML private Label     recordingPathLabel;
 
-    // ── Services (instantiated before initialize() is called) ────────────────
+    // ── Services ──────────────────────────────────────────────────────────────
     private final RecordingService recordingService = new RecordingService();
     private SystemTrayService systemTrayService;
 
@@ -65,43 +75,33 @@ public class MainController implements Initializable {
             doInitialize();
             System.out.println("[MainController] initialize() — DONE");
         } catch (Throwable t) {
-            // Print to stdout (always visible in Maven console) AND stderr
-            System.out.println("[MainController] *** CRASH INSIDE initialize() ***");
+            System.out.println("[MainController] *** CRASH IN initialize() ***");
             System.out.println("[MainController] " + t.getClass().getName() + ": " + t.getMessage());
-            printInitCauseChain(t);
-            // Re-throw so FXMLLoader.load() and Main.start() both see it
+            t.printStackTrace(System.err);
             throw (t instanceof RuntimeException re) ? re : new RuntimeException(t);
         }
     }
 
-    /** The real initialization logic — separated so the try-catch in initialize() stays clean. */
     private void doInitialize() {
-        // ── Step 0: verify @FXML injections ─────────────────────────────────
-        // A null field means the fx:id in main.fxml doesn't match the field name.
-        checkInjected("statusDot",         statusDot);
-        checkInjected("statusLabel",       statusLabel);
-        checkInjected("timerLabel",        timerLabel);
-        checkInjected("captureAreaCombo",  captureAreaCombo);
-        checkInjected("selectAreaButton",  selectAreaButton);
-        checkInjected("audioSourceCombo",  audioSourceCombo);
-        checkInjected("outputFolderField", outputFolderField);
-        checkInjected("startButton",       startButton);
-        checkInjected("pauseButton",       pauseButton);
-        checkInjected("stopButton",        stopButton);
-        checkInjected("fpsLabel",          fpsLabel);
-        checkInjected("qualityLabel",      qualityLabel);
-        checkInjected("recordingPathLabel",recordingPathLabel);
+        // Null-check all @FXML injections
+        checkInjected("statusDot",          statusDot);
+        checkInjected("statusLabel",        statusLabel);
+        checkInjected("timerLabel",         timerLabel);
+        checkInjected("captureAreaCombo",   captureAreaCombo);
+        checkInjected("selectAreaButton",   selectAreaButton);
+        checkInjected("audioSourceCombo",   audioSourceCombo);
+        checkInjected("outputFolderField",  outputFolderField);
+        checkInjected("startButton",        startButton);
+        checkInjected("screenshotButton",   screenshotButton);
+        checkInjected("pauseButton",        pauseButton);
+        checkInjected("stopButton",         stopButton);
+        checkInjected("fpsLabel",           fpsLabel);
+        checkInjected("qualityLabel",       qualityLabel);
+        checkInjected("recordingPathLabel", recordingPathLabel);
         System.out.println("[MainController] All @FXML fields injected OK");
 
-        // ── Step 1: load settings ────────────────────────────────────────────
-        System.out.println("[MainController] Loading settings…");
         AppSettings settings = SettingsManager.getInstance().getSettings();
-        System.out.println("[MainController] Settings: theme=" + settings.getTheme()
-            + ", fps=" + settings.getFps() + ", quality=" + settings.getVideoQuality()
-            + ", output=" + settings.getOutputFolder());
 
-        // ── Step 2: capture area combo ───────────────────────────────────────
-        System.out.println("[MainController] Configuring capture area combo…");
         captureAreaCombo.getItems().addAll("Full Screen", "Custom Area");
         captureAreaCombo.getSelectionModel().selectFirst();
         captureAreaCombo.setOnAction(e -> {
@@ -111,79 +111,71 @@ public class MainController implements Initializable {
         });
         selectAreaButton.setDisable(true);
 
-        // ── Step 3: audio device list ────────────────────────────────────────
-        System.out.println("[MainController] Enumerating audio devices…");
-        try {
-            audioSourceCombo.getItems().addAll(AudioCapture.availableDevices());
-        } catch (Throwable t) {
-            // Audio enumeration failure must not kill the whole app — fall back
-            System.out.println("[MainController] Audio enumeration failed (" + t + "), using fallback");
-            audioSourceCombo.getItems().add("Default Microphone");
-        }
-        if (audioSourceCombo.getItems().isEmpty()) {
-            audioSourceCombo.getItems().add("Default Microphone");
-        }
+        try { audioSourceCombo.getItems().addAll(AudioCapture.availableDevices()); }
+        catch (Throwable t) { audioSourceCombo.getItems().add("Default Microphone"); }
+        if (audioSourceCombo.getItems().isEmpty()) audioSourceCombo.getItems().add("Default Microphone");
         audioSourceCombo.getSelectionModel().selectFirst();
-        System.out.println("[MainController] Audio devices: " + audioSourceCombo.getItems());
 
-        // ── Step 4: output folder ────────────────────────────────────────────
-        System.out.println("[MainController] Setting output folder…");
-        String folder = settings.getOutputFolder();
-        outputFolderField.setText(folder);
-        boolean dirOk = FileUtils.ensureDirectory(folder);
-        System.out.println("[MainController] Output dir '" + folder + "' exists/created: " + dirOk);
+        outputFolderField.setText(settings.getOutputFolder());
+        FileUtils.ensureDirectory(settings.getOutputFolder());
 
-        // ── Step 5: footer labels ────────────────────────────────────────────
         fpsLabel.setText(settings.getFps() + " FPS");
         qualityLabel.setText(settings.getVideoQuality() + " Quality");
 
-        // ── Step 6: recording path label (initially hidden) ──────────────────
         recordingPathLabel.setVisible(false);
         recordingPathLabel.setManaged(false);
 
-        // ── Step 7: property listeners ───────────────────────────────────────
-        System.out.println("[MainController] Attaching property listeners…");
+        // Property listeners
+        recordingService.stateProperty().addListener((obs, o, n) -> updateUiForState(n));
+        recordingService.elapsedSecondsProperty().addListener((obs, o, n) ->
+            timerLabel.setText(FileUtils.formatDuration(n.longValue())));
 
-        recordingService.stateProperty().addListener((obs, oldVal, newVal) ->
-            updateUiForState(newVal));
-
-        recordingService.elapsedSecondsProperty().addListener((obs, oldVal, newVal) ->
-            timerLabel.setText(FileUtils.formatDuration(newVal.longValue())));
-
-        recordingService.currentOutputPathProperty().addListener((obs, oldVal, path) -> {
+        recordingService.currentOutputPathProperty().addListener((obs, o, path) -> {
             if (path != null && !path.isBlank()) {
                 try {
-                    String name = Paths.get(path).getFileName().toString();
-                    recordingPathLabel.setText("Saving → " + name);
-                } catch (Exception ex) {
-                    recordingPathLabel.setText("Saving…");
-                }
+                    recordingPathLabel.setText("Saving → " + Paths.get(path).getFileName());
+                } catch (Exception ex) { recordingPathLabel.setText("Saving…"); }
                 recordingPathLabel.setVisible(true);
                 recordingPathLabel.setManaged(true);
             }
         });
 
-        recordingService.lastSavedPathProperty().addListener((obs, oldVal, path) -> {
-            if (path != null && !path.isBlank()) {
-                try {
-                    String name = Paths.get(path).getFileName().toString();
-                    recordingPathLabel.setText("Saved  ✔  " + name);
-                } catch (Exception ex) {
-                    recordingPathLabel.setText("Saved ✔");
-                }
-                recordingPathLabel.setVisible(true);
-                recordingPathLabel.setManaged(true);
-                System.out.println("[MainController] File saved: " + path);
-            }
+        recordingService.lastSavedPathProperty().addListener((obs, o, path) -> {
+            if (path == null || path.isBlank()) return;
+            try {
+                recordingPathLabel.setText("Saved  ✔  " + Paths.get(path).getFileName());
+            } catch (Exception ex) { recordingPathLabel.setText("Saved ✔"); }
+            recordingPathLabel.setVisible(true);
+            recordingPathLabel.setManaged(true);
+
+            // Show post-recording dialog
+            Stage owner = (Stage) startButton.getScene().getWindow();
+            PostRecordingDialog.show(owner, path, recordingService.getLastRecordingDurationSeconds());
         });
 
-        // ── Step 8: set initial UI state ─────────────────────────────────────
-        System.out.println("[MainController] Setting initial UI state…");
         updateUiForState(RecordingState.IDLE);
+
+        // Register global hotkeys
+        rebindHotkeys(settings);
     }
 
     public void setSystemTrayService(SystemTrayService svc) {
         this.systemTrayService = svc;
+    }
+
+    // ── Hotkey wiring ─────────────────────────────────────────────────────────
+
+    private void rebindHotkeys(AppSettings s) {
+        HotkeyManager hm = HotkeyManager.getInstance();
+        hm.unbindAll();
+        hm.bind(s.getHotkeyStart(),      this::onStartRecording);
+        hm.bind(s.getHotkeyStop(),       this::onStopRecording);
+        hm.bind(s.getHotkeyPause(),      this::onPauseRecording);
+        hm.bind(s.getHotkeyScreenshot(), this::onTakeScreenshot);
+        System.out.println("[MainController] Hotkeys bound: start=" + s.getHotkeyStart()
+            + " stop=" + s.getHotkeyStop()
+            + " pause=" + s.getHotkeyPause()
+            + " screenshot=" + s.getHotkeyScreenshot());
     }
 
     // ── Button handlers ───────────────────────────────────────────────────────
@@ -193,23 +185,17 @@ public class MainController implements Initializable {
         if (recordingService.getState() != RecordingState.IDLE) return;
 
         AppSettings settings = SettingsManager.getInstance().getSettings();
-        String outputFolder = outputFolderField.getText().trim();
-        if (outputFolder.isBlank()) outputFolder = settings.getOutputFolder();
+        String folder = outputFolderField.getText().trim();
+        if (folder.isBlank()) folder = settings.getOutputFolder();
+        FileUtils.ensureDirectory(folder);
 
-        FileUtils.ensureDirectory(outputFolder);
-        String outputPath = FileUtils.generateOutputPath(outputFolder);
-
+        String outputPath = FileUtils.generateOutputPath(folder);
         boolean captureAudio = settings.isCaptureAudio()
             && audioSourceCombo.getValue() != null
             && !"None".equals(audioSourceCombo.getValue());
         Rectangle area = "Custom Area".equals(captureAreaCombo.getValue()) ? customArea : null;
 
-        System.out.println("[MainController] ===== Starting recording =====");
-        System.out.println("[MainController]   Output  : " + outputPath);
-        System.out.println("[MainController]   Area    : " + (area != null ? area : "Full Screen"));
-        System.out.println("[MainController]   Audio   : " + captureAudio);
-        System.out.println("[MainController]   FPS     : " + settings.getFps());
-        System.out.println("[MainController]   Quality : " + settings.getVideoQuality());
+        System.out.println("[MainController] Starting recording → " + outputPath);
 
         RecordingConfig config = new RecordingConfig.Builder()
             .captureArea(area)
@@ -217,9 +203,9 @@ public class MainController implements Initializable {
             .fps(settings.getFps())
             .quality(VideoQuality.fromLabel(settings.getVideoQuality()))
             .outputPath(outputPath)
+            .overlayConfig(settings.toOverlayConfig())
             .build();
 
-        // Show "initialising" feedback immediately (before background thread runs)
         startButton.setText("⏳  Initializing…");
         startButton.setDisable(true);
         recordingPathLabel.setText("Starting…");
@@ -229,12 +215,10 @@ public class MainController implements Initializable {
         new Thread(() -> {
             try {
                 recordingService.startRecording(config);
-                if (systemTrayService != null) {
+                if (systemTrayService != null)
                     systemTrayService.showNotification("PixelCapture", "Recording started");
-                }
             } catch (Throwable t) {
                 LOG.log(Level.SEVERE, "Failed to start recording", t);
-                System.out.println("[MainController] Start recording FAILED: " + t);
                 t.printStackTrace(System.err);
                 Platform.runLater(() -> {
                     startButton.setText("▶   Start Recording");
@@ -251,36 +235,57 @@ public class MainController implements Initializable {
 
     @FXML
     private void onPauseRecording() {
-        if (recordingService.getState() == RecordingState.RECORDING) {
+        if (recordingService.getState() == RecordingState.RECORDING)
             recordingService.pauseRecording();
-        } else if (recordingService.getState() == RecordingState.PAUSED) {
+        else if (recordingService.getState() == RecordingState.PAUSED)
             recordingService.resumeRecording();
-        }
     }
 
     @FXML
     private void onStopRecording() {
         if (recordingService.getState() == RecordingState.IDLE) return;
-        System.out.println("[MainController] Stop requested");
         stopButton.setDisable(true);
         stopButton.setText("⏳ Saving…");
         new Thread(() -> {
             try {
                 recordingService.stopRecording();
-                Platform.runLater(() -> {
-                    if (systemTrayService != null) {
-                        systemTrayService.showNotification("PixelCapture", "Recording saved");
-                    }
-                });
             } catch (Throwable t) {
                 LOG.log(Level.SEVERE, "Failed to stop recording", t);
-                System.out.println("[MainController] Stop FAILED: " + t);
-                t.printStackTrace(System.err);
                 Platform.runLater(() ->
                     showError("Error stopping recording",
                         t.getClass().getSimpleName() + ": " + t.getMessage()));
             }
         }, "stop-recording").start();
+    }
+
+    @FXML
+    private void onTakeScreenshot() {
+        AppSettings settings = SettingsManager.getInstance().getSettings();
+        String folder = outputFolderField.getText().trim();
+        if (folder.isBlank()) folder = settings.getOutputFolder();
+        FileUtils.ensureDirectory(folder);
+
+        Rectangle area = "Custom Area".equals(captureAreaCombo.getValue()) ? customArea : null;
+        final String outputFolder = folder;
+
+        new Thread(() -> {
+            try {
+                ScreenCapture capture = new ScreenCapture(area);
+                BufferedImage screenshot = capture.captureFrame();
+
+                String ts = LocalDateTime.now().format(
+                    DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
+                String path = outputFolder + File.separator + "screenshot_" + ts + ".png";
+                ImageIO.write(screenshot, "PNG", new File(path));
+                System.out.println("[MainController] Screenshot saved: " + path);
+
+                Platform.runLater(() -> flashNotification("Screenshot saved!"));
+
+            } catch (Exception e) {
+                LOG.log(Level.WARNING, "Screenshot failed", e);
+                Platform.runLater(() -> showError("Screenshot failed", e.getMessage()));
+            }
+        }, "screenshot").start();
     }
 
     @FXML
@@ -290,19 +295,15 @@ public class MainController implements Initializable {
         new Thread(() -> {
             try {
                 Thread.sleep(400);
-                ScreenAreaSelector selector = new ScreenAreaSelector();
-                Rectangle area = selector.selectArea();
+                Rectangle area = new ScreenAreaSelector().selectArea();
                 Platform.runLater(() -> {
                     owner.setIconified(false);
                     if (area != null) {
                         customArea = area;
                         selectAreaButton.setText(area.width + " × " + area.height);
-                        System.out.println("[MainController] Custom area: " + area);
                     }
                 });
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
-            }
+            } catch (InterruptedException ex) { Thread.currentThread().interrupt(); }
         }, "area-selector").start();
     }
 
@@ -312,14 +313,12 @@ public class MainController implements Initializable {
         chooser.setTitle("Select Output Folder");
         File initial = new File(outputFolderField.getText());
         if (initial.exists()) chooser.setInitialDirectory(initial);
-
         File chosen = chooser.showDialog(outputFolderField.getScene().getWindow());
         if (chosen != null) {
             outputFolderField.setText(chosen.getAbsolutePath());
             AppSettings s = SettingsManager.getInstance().getSettings();
             s.setOutputFolder(chosen.getAbsolutePath());
             SettingsManager.getInstance().saveSettings(s);
-            System.out.println("[MainController] Output folder → " + chosen.getAbsolutePath());
         }
     }
 
@@ -329,26 +328,27 @@ public class MainController implements Initializable {
             FXMLLoader loader = new FXMLLoader(
                 getClass().getResource("/com/screenrecorder/fxml/settings.fxml"));
             Parent root = loader.load();
-
             SettingsController ctrl = loader.getController();
             ctrl.setOnSave(() -> {
                 AppSettings s = SettingsManager.getInstance().getSettings();
                 fpsLabel.setText(s.getFps() + " FPS");
                 qualityLabel.setText(s.getVideoQuality() + " Quality");
                 ThemeManager.applyTheme(startButton.getScene(), s.getTheme());
+                rebindHotkeys(s);
             });
 
             Scene scene = new Scene(root);
             ThemeManager.applyTheme(scene, SettingsManager.getInstance().getSettings().getTheme());
-
             Stage stage = new Stage();
             stage.setTitle("Settings — PixelCapture");
             stage.setScene(scene);
             stage.setResizable(false);
             stage.initModality(Modality.WINDOW_MODAL);
             stage.initOwner(startButton.getScene().getWindow());
+            // Stop the inline webcam preview when the window is closed via the X button
+            // so it doesn't keep the camera open while recording starts.
+            stage.setOnCloseRequest(e -> ctrl.onWindowClose());
             stage.showAndWait();
-
         } catch (Exception e) {
             LOG.log(Level.SEVERE, "Could not open settings", e);
             showError("Settings error", e.getMessage());
@@ -358,7 +358,7 @@ public class MainController implements Initializable {
     // ── UI state machine ───────────────────────────────────────────────────────
 
     private void updateUiForState(RecordingState state) {
-        System.out.println("[MainController] UI state → " + state);
+        System.out.println("[MainController] UI → " + state);
         switch (state) {
             case IDLE -> {
                 statusDot.getStyleClass().setAll("status-dot", "status-idle");
@@ -366,6 +366,7 @@ public class MainController implements Initializable {
                 timerLabel.setText("00:00:00");
                 startButton.setText("▶   Start Recording");
                 startButton.setDisable(false);
+                screenshotButton.setDisable(false);
                 pauseButton.setDisable(true);
                 pauseButton.setText("⏸  Pause");
                 stopButton.setText("■  Stop");
@@ -395,6 +396,21 @@ public class MainController implements Initializable {
         }
     }
 
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /** Briefly shows a message in the recording-path label then fades it. */
+    private void flashNotification(String message) {
+        recordingPathLabel.setText(message);
+        recordingPathLabel.setVisible(true);
+        recordingPathLabel.setManaged(true);
+        new Timeline(new KeyFrame(Duration.seconds(2), e -> {
+            if (recordingService.getState() == RecordingState.IDLE) {
+                recordingPathLabel.setVisible(false);
+                recordingPathLabel.setManaged(false);
+            }
+        })).play();
+    }
+
     private void showError(String title, String message) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
         alert.setTitle(title);
@@ -403,32 +419,8 @@ public class MainController implements Initializable {
         alert.showAndWait();
     }
 
-    // ── Diagnostic helpers ────────────────────────────────────────────────────
-
-    /** Throws a clear RuntimeException if an @FXML field was not injected. */
-    private static void checkInjected(String fieldName, Object value) {
-        if (value == null) {
-            throw new RuntimeException(
-                "@FXML field '" + fieldName + "' is null — " +
-                "check that fx:id=\"" + fieldName + "\" exists in main.fxml");
-        }
-    }
-
-    /** Prints the full cause chain to stdout so it is always visible in the Maven console. */
-    private static void printInitCauseChain(Throwable t) {
-        Throwable cur = t;
-        int depth = 0;
-        while (cur != null && depth < 8) {
-            System.out.println("[MainController]   "
-                + (depth == 0 ? "Root" : "Cause #" + depth) + ": "
-                + cur.getClass().getName() + ": " + cur.getMessage());
-            for (StackTraceElement ste : cur.getStackTrace()) {
-                if (ste.getClassName().startsWith("com.screenrecorder") || depth == 0) {
-                    System.out.println("[MainController]     at " + ste);
-                }
-            }
-            cur = cur.getCause();
-            depth++;
-        }
+    private static void checkInjected(String name, Object value) {
+        if (value == null) throw new RuntimeException(
+            "@FXML field '" + name + "' is null — check fx:id=\"" + name + "\" in main.fxml");
     }
 }

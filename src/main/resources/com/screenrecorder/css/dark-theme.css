@@ -317,6 +317,112 @@
     -fx-text-fill: #818cf8;
 }
 
+/* ── Screenshot button ───────────────────────────────────────────────────── */
+.screenshot-button {
+    -fx-background-color: #1e3a5f;
+    -fx-text-fill: #60a5fa;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-padding: 9 20 9 20;
+    -fx-background-radius: 9;
+    -fx-border-radius: 9;
+    -fx-border-color: #2563eb55;
+    -fx-border-width: 1;
+    -fx-cursor: hand;
+}
+.screenshot-button:hover {
+    -fx-background-color: #1e40af;
+    -fx-border-color: #3b82f6;
+}
+.screenshot-button:disabled {
+    -fx-opacity: 0.45;
+}
+
+/* ── Settings TabPane ────────────────────────────────────────────────────── */
+.settings-tab-pane {
+    -fx-background-color: #0f0f1a;
+    -fx-tab-min-width: 80;
+}
+.settings-tab-pane .tab-header-area {
+    -fx-background-color: #14142a;
+    -fx-border-color: transparent transparent #252540 transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.settings-tab-pane .tab-header-area .tab-header-background {
+    -fx-background-color: transparent;
+}
+.settings-tab-pane .tab {
+    -fx-background-color: transparent;
+    -fx-text-fill: #64748b;
+    -fx-padding: 8 16 8 16;
+    -fx-cursor: hand;
+    -fx-background-radius: 0;
+    -fx-border-color: transparent;
+}
+.settings-tab-pane .tab:selected {
+    -fx-background-color: transparent;
+    -fx-text-fill: #6366f1;
+    -fx-border-color: transparent transparent #6366f1 transparent;
+    -fx-border-width: 0 0 2 0;
+}
+.settings-tab-pane .tab .tab-label {
+    -fx-text-fill: inherit;
+    -fx-font-size: 13px;
+}
+.settings-tab-pane .tab-content-area {
+    -fx-background-color: #0f0f1a;
+    -fx-padding: 0;
+}
+.settings-tab-pane .tab:hover:!selected {
+    -fx-background-color: #1a1a2e;
+    -fx-text-fill: #94a3b8;
+}
+
+/* ── ColorPicker compact ─────────────────────────────────────────────────── */
+.color-picker-compact {
+    -fx-background-color: #252540;
+    -fx-border-color: #3d3d5c;
+    -fx-border-width: 1;
+    -fx-border-radius: 7;
+    -fx-background-radius: 7;
+    -fx-padding: 4 8 4 8;
+    -fx-cursor: hand;
+}
+.color-picker-compact .color-picker-label { -fx-text-fill: #e2e8f0; }
+.color-picker-compact:hover { -fx-border-color: #6366f1; }
+
+/* ── Webcam preview pane ─────────────────────────────────────────────────── */
+.webcam-preview-pane {
+    -fx-background-color: #000000;
+    -fx-background-radius: 8;
+    -fx-border-color: #3d3d5c;
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+    -fx-alignment: center;
+}
+.preview-placeholder {
+    -fx-text-fill: #475569;
+    -fx-font-size: 12px;
+    -fx-wrap-text: true;
+    -fx-text-alignment: center;
+    -fx-max-width: 260;
+}
+
+/* ── Permission / warning box ────────────────────────────────────────────── */
+.warning-box {
+    -fx-background-color: #2d1a0e;
+    -fx-background-radius: 8;
+    -fx-border-color: #92400e;
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+    -fx-padding: 10 14 10 14;
+}
+.warning-label {
+    -fx-text-fill: #fbbf24;
+    -fx-font-size: 12px;
+    -fx-wrap-text: true;
+}
+
 /* ── Settings page extras ────────────────────────────────────────────────── */
 .settings-root {
     -fx-pref-height: 580;

@@ -3,7 +3,9 @@ package com.screenrecorder.services;
 import com.screenrecorder.models.RecordingConfig;
 import com.screenrecorder.models.RecordingState;
 import com.screenrecorder.recorder.AudioCapture;
+import com.screenrecorder.recorder.FrameCompositor;
 import com.screenrecorder.recorder.ScreenCapture;
+import com.screenrecorder.recorder.WebcamCapture;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -53,6 +55,8 @@ public class RecordingService {
     private FFmpegFrameRecorder  recorder;
     private ScreenCapture        screenCapture;
     private AudioCapture         audioCapture;
+    private WebcamCapture        webcamCapture;
+    private FrameCompositor      compositor;
     private Java2DFrameConverter frameConverter;
     private ScheduledExecutorService videoScheduler;
 
@@ -75,6 +79,17 @@ public class RecordingService {
     private long     totalPausedMs;
     private long     pauseStartMs;
     private long[]   frameCount = {0};
+    /**
+     * {@link System#nanoTime()} captured immediately before the video scheduler
+     * fires its first frame.  All video frame PTS values are computed as
+     * {@code (System.nanoTime() - recordingStartNs) / 1000} microseconds so that
+     * the video plays at true wall-clock speed even when the screen-capture loop
+     * runs slower than the configured FPS.
+     */
+    private volatile long recordingStartNs;
+
+    /** Duration of the most recently completed recording (seconds). */
+    private long lastRecordingDurationSeconds = 0;
 
     // =========================================================================
     // Public API
@@ -98,12 +113,67 @@ public class RecordingService {
         if (outputDir != null && !outputDir.exists()) {
             boolean created = outputDir.mkdirs();
             System.out.println("[RecordingService]   Created dir : " + outputDir + " → " + created);
-            if (!created) {
-                throw new RuntimeException("Cannot create output directory: " + outputDir);
-            }
+            if (!created) throw new RuntimeException("Cannot create output directory: " + outputDir);
         }
 
-        // --- Screen capture --------------------------------------------------
+        // ── STEP 1: Webcam (pre-warm BEFORE everything else) ─────────────────
+        // startRecording() is called from a background thread so blocking here
+        // does NOT freeze the UI — the button already shows "⏳ Initializing…".
+        // Starting the webcam first ensures the overlay is visible from frame 1.
+        if (config.getOverlayConfig() != null && config.getOverlayConfig().isWebcamEnabled()) {
+            if (!WebcamCapture.isAvailable()) {
+                System.out.println("[RecordingService] Webcam overlay disabled — "
+                    + "OpenCV native library not loaded");
+            } else {
+                webcamCapture = new WebcamCapture();
+                try {
+                    webcamCapture.start(
+                        config.getOverlayConfig().getWebcamDeviceIndex(), config.getFps());
+                    System.out.println("[RecordingService] Webcam initialized: YES — "
+                        + webcamCapture.getCapturedWidth() + "×"
+                        + webcamCapture.getCapturedHeight());
+                    System.out.println("[RecordingService] Waiting for first webcam frame (max 5 s)…");
+
+                    long deadline = System.currentTimeMillis() + 5_000;
+                    while (webcamCapture.getLatestFrame() == null
+                            && System.currentTimeMillis() < deadline) {
+                        Thread.sleep(50);
+                    }
+
+                    if (webcamCapture.getLatestFrame() != null) {
+                        System.out.println("[RecordingService] Webcam ready — first frame received");
+                    } else {
+                        System.out.println("[RecordingService] Webcam: first frame not yet received "
+                            + "(overlay will appear once the camera warms up)");
+                    }
+                } catch (WebcamCapture.CameraPermissionException ex) {
+                    System.out.println("[RecordingService] Camera permission error: " + ex.getMessage());
+                    System.out.println("[RecordingService] Fix: Windows Settings → Privacy → Camera → allow desktop apps");
+                    LOG.log(Level.WARNING, "Camera permission denied", ex);
+                    webcamCapture.stop();
+                    webcamCapture = null;
+                } catch (Throwable ex) {
+                    System.out.println("[RecordingService] Webcam initialized: NO — "
+                        + ex.getClass().getSimpleName() + ": " + ex.getMessage());
+                    LOG.log(Level.WARNING, "Webcam start failed", ex);
+                    webcamCapture = null;
+                }
+            }
+        } else {
+            System.out.println("[RecordingService] Webcam initialized: NO (disabled in overlay config)");
+        }
+
+        // ── STEP 2: Compositor ───────────────────────────────────────────────
+        boolean needCompositor = config.getOverlayConfig() != null
+            && (webcamCapture != null || config.getOverlayConfig().isFpsCounterEnabled());
+        if (needCompositor) {
+            compositor = new FrameCompositor(config.getOverlayConfig(), webcamCapture);
+            System.out.println("[RecordingService] FrameCompositor created"
+                + " (webcam=" + (webcamCapture != null ? "active" : "none")
+                + ", fps-counter=" + config.getOverlayConfig().isFpsCounterEnabled() + ")");
+        }
+
+        // ── STEP 3: Screen capture + BGR buffer ──────────────────────────────
         Rectangle area = ScreenCapture.toEvenDimensions(
             config.getCaptureArea() != null
                 ? config.getCaptureArea()
@@ -117,13 +187,11 @@ public class RecordingService {
         int w = area.width;
         int h = area.height;
 
-        // Pre-allocate the BGR conversion buffer for this session.
-        // Reused every frame — no per-frame allocation in the hot path.
         bgrBuffer = new BufferedImage(w, h, BufferedImage.TYPE_3BYTE_BGR);
         System.out.println("[RecordingService]   BGR buffer  : " + w + "×" + h
             + " TYPE_3BYTE_BGR (true BGR24 for FFmpeg)");
 
-        // --- FFmpeg recorder -------------------------------------------------
+        // ── STEP 4: FFmpeg recorder ──────────────────────────────────────────
         System.out.println("[RecordingService] Initialising FFmpegFrameRecorder " + w + "×" + h + "…");
         int audioChannels = config.isCaptureAudio() ? config.getAudioChannels() : 0;
         recorder = new FFmpegFrameRecorder(config.getOutputPath(), w, h, audioChannels);
@@ -131,12 +199,8 @@ public class RecordingService {
         recorder.setVideoCodec(AV_CODEC_ID_H264);
         recorder.setFrameRate(config.getFps());
         recorder.setVideoBitrate(config.getVideoBitrate());
-        // DO NOT call recorder.setPixelFormat() here.
-        // FFmpegFrameRecorder defaults to AV_PIX_FMT_BGR24 for the *source* (input)
-        // pixel format — which is exactly what our TYPE_3BYTE_BGR bgrBuffer produces.
-        // Setting it to YUV420P would tell libswscale the input is YUV420P, causing
-        // it to misinterpret our BGR bytes and producing the red colour tint.
-        // The H264 *codec* always uses YUV420P internally regardless of this setting.
+        // DO NOT call recorder.setPixelFormat() — FFmpegFrameRecorder defaults to
+        // AV_PIX_FMT_BGR24 for the source, matching our TYPE_3BYTE_BGR bgrBuffer.
         recorder.setVideoOption("preset", "ultrafast");
         recorder.setVideoOption("crf",    config.getCrf());
         recorder.setVideoOption("tune",   "zerolatency");
@@ -152,7 +216,23 @@ public class RecordingService {
         recorder.start();
         System.out.println("[RecordingService] recorder.start() OK");
 
-        // --- Timing ----------------------------------------------------------
+        // ── STEP 5: Audio capture (must come after recorder.start()) ─────────
+        if (config.isCaptureAudio()) {
+            audioCapture = new AudioCapture();
+            try {
+                audioCapture.start(recorder, recorderLock);
+                System.out.println("[RecordingService] Audio capture thread started: YES");
+            } catch (Exception ex) {
+                System.out.println("[RecordingService] Audio capture thread started: NO — "
+                    + ex.getClass().getSimpleName() + ": " + ex.getMessage());
+                LOG.log(Level.WARNING, "Audio capture unavailable", ex);
+                audioCapture = null;
+            }
+        } else {
+            System.out.println("[RecordingService] Audio capture thread started: NO (disabled by config)");
+        }
+
+        // ── STEP 6: Timing ───────────────────────────────────────────────────
         recordingStartMs = System.currentTimeMillis();
         totalPausedMs    = 0;
         frameCount[0]    = 0;
@@ -169,66 +249,57 @@ public class RecordingService {
         elapsedTimer.setCycleCount(Animation.INDEFINITE);
         elapsedTimer.play();
 
-        // --- Video capture thread (ScheduledExecutorService) -----------------
+        // ── STEP 7: Video scheduler (LAST — everything else is ready) ────────
+        // Capture the wall-clock anchor NOW so it tightly matches the first
+        // frame the scheduler will capture.
+        recordingStartNs = System.nanoTime();
+
         long frameIntervalMs = 1000L / config.getFps();
+        System.out.println("[RecordingService] Video scheduler: capturing frame every "
+            + frameIntervalMs + " ms (target " + config.getFps() + " FPS)");
+
         videoScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "video-capture");
             t.setDaemon(true);
             return t;
         });
 
-        // Mark actively recording BEFORE scheduling so the first frame isn't skipped
         activelyRecording.set(true);
 
         videoScheduler.scheduleAtFixedRate(() -> {
             if (!activelyRecording.get()) return;
             try {
+                // captureNs serves double duty: webcam frame selection AND video PTS.
+                // Using wall-clock microseconds (not frame-count * interval) means the
+                // video plays at true 1× speed even when capture is slower than target FPS.
+                long captureNs = System.nanoTime();
+                long ts = (captureNs - recordingStartNs) / 1000; // µs from recording start
+
                 BufferedImage image = screenCapture.captureFrame();
                 if (image.getWidth() != w || image.getHeight() != h) {
                     image = image.getSubimage(0, 0, w, h);
                 }
 
-                // ── Colour-correct conversion ─────────────────────────────────
-                // Robot returns TYPE_INT_RGB where each pixel int = 0x00RRGGBB.
-                // On a little-endian CPU the 4 bytes in memory are B-G-R-00, so
-                // passing the raw data to FFmpeg as-is would swap R↔B and produce
-                // the well-known "red tint" bug.
-                //
-                // Fix: copy the Robot int-array directly into a TYPE_3BYTE_BGR
-                // BufferedImage, giving a true B-G-R byte layout (AV_PIX_FMT_BGR24).
-                // FFmpegFrameRecorder's default source format is BGR24, so libswscale
-                // will convert it to YUV420P correctly before H264 encoding.
+                if (compositor != null) compositor.composite(image, captureNs);
+
                 convertToBgr(image, bgrBuffer);
 
                 Frame frame = frameConverter.convert(bgrBuffer);
-                long ts = (long) (frameCount[0]++ * (1_000_000.0 / config.getFps()));
+                long frameNum = frameCount[0]++;
+                if (frameNum < 5) {
+                    System.out.println("[RecordingService] Frame " + frameNum
+                        + "  ts=" + ts + " µs");
+                }
                 synchronized (recorderLock) {
                     if (recorder != null) {
                         recorder.setTimestamp(ts);
                         recorder.record(frame);
                     }
                 }
-            } catch (Exception ex) {
+            } catch (Throwable ex) {
                 LOG.log(Level.WARNING, "Video frame capture error", ex);
             }
         }, 0, frameIntervalMs, TimeUnit.MILLISECONDS);
-
-        System.out.println("[RecordingService] Video capture thread scheduled at "
-            + frameIntervalMs + " ms intervals");
-
-        // --- Audio capture ---------------------------------------------------
-        if (config.isCaptureAudio()) {
-            audioCapture = new AudioCapture();
-            try {
-                audioCapture.start(recorder, recorderLock);
-                System.out.println("[RecordingService] Audio capture started");
-            } catch (Exception ex) {
-                System.out.println("[RecordingService] Audio unavailable (" + ex.getMessage()
-                    + ") — continuing without audio");
-                LOG.log(Level.WARNING, "Audio capture unavailable", ex);
-                audioCapture = null;
-            }
-        }
 
         Platform.runLater(() -> state.set(RecordingState.RECORDING));
         System.out.println("[RecordingService] startRecording() complete — state → RECORDING");
@@ -238,6 +309,10 @@ public class RecordingService {
         if (state.get() == RecordingState.IDLE) return;
 
         System.out.println("[RecordingService] ===== stopRecording() =====");
+        // Capture duration BEFORE resetting timing state
+        lastRecordingDurationSeconds =
+            (System.currentTimeMillis() - recordingStartMs - totalPausedMs) / 1000;
+
         String savedPath = new File(currentOutputPath.get()).getAbsolutePath();
 
         // Stop capture threads FIRST (atomically visible to video thread)
@@ -280,8 +355,10 @@ public class RecordingService {
 
         Platform.runLater(() -> lastSavedPath.set(savedPath));
 
-        // Release the BGR scratch buffer so GC can reclaim it
-        bgrBuffer = null;
+        // Release overlay resources
+        if (webcamCapture != null) { webcamCapture.stop(); webcamCapture = null; }
+        compositor = null;
+        bgrBuffer  = null;
     }
 
     public void pauseRecording() {
@@ -308,11 +385,12 @@ public class RecordingService {
 
     // ── Accessors ─────────────────────────────────────────────────────────────
 
-    public ReadOnlyObjectProperty<RecordingState> stateProperty()      { return state; }
-    public RecordingState getState()                                    { return state.get(); }
-    public ReadOnlyLongProperty   elapsedSecondsProperty()             { return elapsedSeconds; }
-    public ReadOnlyStringProperty currentOutputPathProperty()          { return currentOutputPath; }
-    public ReadOnlyStringProperty lastSavedPathProperty()              { return lastSavedPath; }
+    public ReadOnlyObjectProperty<RecordingState> stateProperty()          { return state; }
+    public RecordingState getState()                                        { return state.get(); }
+    public ReadOnlyLongProperty   elapsedSecondsProperty()                 { return elapsedSeconds; }
+    public ReadOnlyStringProperty currentOutputPathProperty()              { return currentOutputPath; }
+    public ReadOnlyStringProperty lastSavedPathProperty()                  { return lastSavedPath; }
+    public long getLastRecordingDurationSeconds()                          { return lastRecordingDurationSeconds; }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 

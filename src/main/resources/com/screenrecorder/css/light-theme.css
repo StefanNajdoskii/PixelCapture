@@ -308,6 +308,96 @@
     -fx-text-fill: #4f46e5;
 }
 
+/* ── Screenshot button ───────────────────────────────────────────────────── */
+.screenshot-button {
+    -fx-background-color: #eff6ff;
+    -fx-text-fill: #2563eb;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-padding: 9 20 9 20;
+    -fx-background-radius: 9;
+    -fx-border-radius: 9;
+    -fx-border-color: #bfdbfe;
+    -fx-border-width: 1;
+    -fx-cursor: hand;
+}
+.screenshot-button:hover {
+    -fx-background-color: #dbeafe;
+    -fx-border-color: #3b82f6;
+}
+.screenshot-button:disabled { -fx-opacity: 0.45; }
+
+/* ── Settings TabPane ────────────────────────────────────────────────────── */
+.settings-tab-pane { -fx-background-color: #f8fafc; -fx-tab-min-width: 80; }
+.settings-tab-pane .tab-header-area {
+    -fx-background-color: #ffffff;
+    -fx-border-color: transparent transparent #e2e8f0 transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.settings-tab-pane .tab-header-area .tab-header-background { -fx-background-color: transparent; }
+.settings-tab-pane .tab {
+    -fx-background-color: transparent;
+    -fx-text-fill: #64748b;
+    -fx-padding: 8 16 8 16;
+    -fx-cursor: hand;
+    -fx-background-radius: 0;
+    -fx-border-color: transparent;
+}
+.settings-tab-pane .tab:selected {
+    -fx-background-color: transparent;
+    -fx-text-fill: #6366f1;
+    -fx-border-color: transparent transparent #6366f1 transparent;
+    -fx-border-width: 0 0 2 0;
+}
+.settings-tab-pane .tab .tab-label { -fx-text-fill: inherit; -fx-font-size: 13px; }
+.settings-tab-pane .tab-content-area { -fx-background-color: #f8fafc; -fx-padding: 0; }
+.settings-tab-pane .tab:hover:!selected { -fx-background-color: #f1f5f9; -fx-text-fill: #475569; }
+
+/* ── ColorPicker compact ─────────────────────────────────────────────────── */
+.color-picker-compact {
+    -fx-background-color: #f1f5f9;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 1;
+    -fx-border-radius: 7;
+    -fx-background-radius: 7;
+    -fx-padding: 4 8 4 8;
+    -fx-cursor: hand;
+}
+.color-picker-compact .color-picker-label { -fx-text-fill: #1e293b; }
+.color-picker-compact:hover { -fx-border-color: #6366f1; }
+
+/* ── Webcam preview pane ─────────────────────────────────────────────────── */
+.webcam-preview-pane {
+    -fx-background-color: #000000;
+    -fx-background-radius: 8;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+    -fx-alignment: center;
+}
+.preview-placeholder {
+    -fx-text-fill: #94a3b8;
+    -fx-font-size: 12px;
+    -fx-wrap-text: true;
+    -fx-text-alignment: center;
+    -fx-max-width: 260;
+}
+
+/* ── Permission / warning box ────────────────────────────────────────────── */
+.warning-box {
+    -fx-background-color: #fffbeb;
+    -fx-background-radius: 8;
+    -fx-border-color: #fde68a;
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+    -fx-padding: 10 14 10 14;
+}
+.warning-label {
+    -fx-text-fill: #92400e;
+    -fx-font-size: 12px;
+    -fx-wrap-text: true;
+}
+
 /* ── Settings extras ─────────────────────────────────────────────────────── */
 .settings-root {
     -fx-pref-height: 580;

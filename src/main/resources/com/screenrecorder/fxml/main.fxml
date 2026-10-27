@@ -85,6 +85,10 @@
                 styleClass="start-button" maxWidth="Infinity"
                 onAction="#onStartRecording"/>
 
+        <Button fx:id="screenshotButton" text="📷  Take Screenshot"
+                styleClass="screenshot-button" maxWidth="Infinity"
+                onAction="#onTakeScreenshot"/>
+
         <HBox spacing="12">
             <Button fx:id="pauseButton" text="⏸  Pause"
                     styleClass="pause-button" disable="true"

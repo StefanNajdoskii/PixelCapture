@@ -2,113 +2,234 @@
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
+<?import javafx.scene.paint.*?>
+<?import javafx.scene.shape.Circle?>
+<?import javafx.scene.image.Image?>
+<?import javafx.scene.image.ImageView?>
 
 <VBox xmlns="http://javafx.com/javafx/17"
       xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="com.screenrecorder.ui.SettingsController"
       styleClass="root-container settings-root"
-      prefWidth="460"
-      spacing="0">
+      prefWidth="500" spacing="0">
 
     <!-- ══════════════════════════ HEADER ═══════════════════════════════════ -->
-    <HBox styleClass="header" alignment="CENTER_LEFT">
-        <padding><Insets top="18" right="22" bottom="18" left="22"/></padding>
+    <HBox styleClass="header" alignment="CENTER_LEFT" spacing="8">
+        <padding><Insets top="16" right="22" bottom="16" left="22"/></padding>
+        <Circle radius="7" styleClass="logo-dot"/>
         <Label text="Settings" styleClass="app-title"/>
     </HBox>
 
-    <ScrollPane fitToWidth="true" styleClass="settings-scroll" VBox.vgrow="ALWAYS">
-        <VBox spacing="10">
-            <padding><Insets top="14" right="16" bottom="14" left="16"/></padding>
+    <!-- ══════════════════════════ TABS ═════════════════════════════════════ -->
+    <TabPane fx:id="settingsTabPane" styleClass="settings-tab-pane"
+             tabClosingPolicy="UNAVAILABLE" VBox.vgrow="ALWAYS">
 
-            <!-- ─────────────────────── VIDEO ──────────────────────────── -->
-            <VBox styleClass="card" spacing="16">
-                <padding><Insets top="18" right="20" bottom="18" left="20"/></padding>
+        <!-- ══════════════ VIDEO ══════════════ -->
+        <Tab text="Video" styleClass="settings-tab">
+            <ScrollPane fitToWidth="true" styleClass="settings-scroll">
+                <VBox spacing="10">
+                    <padding><Insets top="14" right="16" bottom="14" left="16"/></padding>
+                    <VBox styleClass="card" spacing="16">
+                        <padding><Insets top="18" right="20" bottom="18" left="20"/></padding>
+                        <Label text="VIDEO" styleClass="section-label"/>
+                        <HBox alignment="CENTER_LEFT" spacing="10">
+                            <Label text="Quality" prefWidth="110" styleClass="field-label"/>
+                            <ComboBox fx:id="qualityCombo" HBox.hgrow="ALWAYS" maxWidth="Infinity" styleClass="combo-field"/>
+                        </HBox>
+                        <HBox alignment="CENTER_LEFT" spacing="10">
+                            <Label text="Frame Rate" prefWidth="110" styleClass="field-label"/>
+                            <ComboBox fx:id="fpsCombo" HBox.hgrow="ALWAYS" maxWidth="Infinity" styleClass="combo-field"/>
+                            <Label text="FPS" styleClass="field-label"/>
+                        </HBox>
+                    </VBox>
+                </VBox>
+            </ScrollPane>
+        </Tab>
 
-                <Label text="VIDEO" styleClass="section-label"/>
+        <!-- ══════════════ AUDIO ══════════════ -->
+        <Tab text="Audio" styleClass="settings-tab">
+            <ScrollPane fitToWidth="true" styleClass="settings-scroll">
+                <VBox spacing="10">
+                    <padding><Insets top="14" right="16" bottom="14" left="16"/></padding>
+                    <VBox styleClass="card" spacing="16">
+                        <padding><Insets top="18" right="20" bottom="18" left="20"/></padding>
+                        <Label text="AUDIO" styleClass="section-label"/>
+                        <CheckBox fx:id="captureAudioCheck" text="Record microphone audio" styleClass="settings-check"/>
+                        <HBox alignment="CENTER_LEFT" spacing="10">
+                            <Label text="Device" prefWidth="110" styleClass="field-label"/>
+                            <ComboBox fx:id="audioDeviceCombo" HBox.hgrow="ALWAYS" maxWidth="Infinity" styleClass="combo-field"/>
+                        </HBox>
+                    </VBox>
+                </VBox>
+            </ScrollPane>
+        </Tab>
 
-                <HBox alignment="CENTER_LEFT" spacing="10">
-                    <Label text="Quality" prefWidth="100" styleClass="field-label"/>
-                    <ComboBox fx:id="qualityCombo" HBox.hgrow="ALWAYS" maxWidth="Infinity"
-                              styleClass="combo-field"/>
-                </HBox>
+        <!-- ══════════════ OVERLAY ══════════════ -->
+        <Tab text="Overlay" styleClass="settings-tab">
+            <ScrollPane fitToWidth="true" styleClass="settings-scroll">
+                <VBox spacing="10">
+                    <padding><Insets top="14" right="16" bottom="14" left="16"/></padding>
 
-                <HBox alignment="CENTER_LEFT" spacing="10">
-                    <Label text="Frame Rate" prefWidth="100" styleClass="field-label"/>
-                    <ComboBox fx:id="fpsCombo" HBox.hgrow="ALWAYS" maxWidth="Infinity"
-                              styleClass="combo-field"/>
-                    <Label text="FPS" styleClass="field-label"/>
-                </HBox>
-            </VBox>
+                    <!-- Webcam -->
+                    <VBox styleClass="card" spacing="14">
+                        <padding><Insets top="18" right="20" bottom="18" left="20"/></padding>
+                        <Label text="WEBCAM OVERLAY" styleClass="section-label"/>
+                        <CheckBox fx:id="webcamEnabledCheck" text="Enable Webcam Overlay" styleClass="settings-check"/>
 
-            <!-- ─────────────────────── AUDIO ──────────────────────────── -->
-            <VBox styleClass="card" spacing="16">
-                <padding><Insets top="18" right="20" bottom="18" left="20"/></padding>
+                        <!-- Device row + action buttons -->
+                        <HBox alignment="CENTER_LEFT" spacing="8">
+                            <Label text="Device" prefWidth="110" styleClass="field-label"/>
+                            <ComboBox fx:id="webcamDeviceCombo" HBox.hgrow="ALWAYS" maxWidth="Infinity" styleClass="combo-field"/>
+                            <Button fx:id="refreshWebcamBtn" text="↻" styleClass="secondary-button"
+                                    onAction="#onRefreshWebcams" focusTraversable="false"/>
+                            <Button text="🎥 Test" styleClass="secondary-button"
+                                    onAction="#onTestCamera" focusTraversable="false"/>
+                        </HBox>
 
-                <Label text="AUDIO" styleClass="section-label"/>
+                        <!-- Live preview (shown/hidden by controller) -->
+                        <StackPane fx:id="webcamPreviewPane" styleClass="webcam-preview-pane" minHeight="168">
+                            <ImageView fx:id="webcamPreviewView"
+                                       fitWidth="280" fitHeight="160"
+                                       preserveRatio="true" smooth="true"/>
+                            <Label fx:id="webcamPreviewLabel"
+                                   text="Enable webcam above to see live preview"
+                                   styleClass="preview-placeholder" wrapText="true"/>
+                        </StackPane>
 
-                <HBox alignment="CENTER_LEFT" spacing="10">
-                    <CheckBox fx:id="captureAudioCheck" text="Record microphone audio"
-                              styleClass="settings-check"/>
-                </HBox>
+                        <!-- Permission / camera-in-use warning -->
+                        <VBox fx:id="permissionWarningBox" visible="false" managed="false"
+                              styleClass="warning-box" spacing="6">
+                            <Label fx:id="permissionWarningLabel"
+                                   text="⚠  Camera could not be opened."
+                                   styleClass="warning-label" wrapText="true"/>
+                            <HBox spacing="10" alignment="CENTER_LEFT">
+                                <Button text="Open Camera Privacy Settings"
+                                        styleClass="secondary-button"
+                                        onAction="#onOpenCameraSettings"/>
+                            </HBox>
+                        </VBox>
+                        <HBox alignment="CENTER_LEFT" spacing="10">
+                            <Label text="Position" prefWidth="110" styleClass="field-label"/>
+                            <ComboBox fx:id="webcamPositionCombo" HBox.hgrow="ALWAYS" maxWidth="Infinity" styleClass="combo-field"/>
+                        </HBox>
+                        <HBox alignment="CENTER_LEFT" spacing="10">
+                            <Label text="Shape" prefWidth="110" styleClass="field-label"/>
+                            <ComboBox fx:id="webcamShapeCombo" HBox.hgrow="ALWAYS" maxWidth="Infinity" styleClass="combo-field"/>
+                        </HBox>
+                        <HBox alignment="CENTER_LEFT" spacing="10">
+                            <Label text="Size" prefWidth="110" styleClass="field-label"/>
+                            <Slider fx:id="webcamSizeSlider" HBox.hgrow="ALWAYS"
+                                    min="10" max="50" blockIncrement="5" showTickMarks="true" showTickLabels="true" majorTickUnit="10"/>
+                            <Label fx:id="webcamSizeLabel" text="22%" prefWidth="38" styleClass="field-label"/>
+                        </HBox>
+                        <HBox alignment="CENTER_LEFT" spacing="10">
+                            <Label text="Border" prefWidth="110" styleClass="field-label"/>
+                            <Slider fx:id="webcamBorderSlider" HBox.hgrow="ALWAYS" min="0" max="10" blockIncrement="1"/>
+                            <Label fx:id="webcamBorderLabel" text="3 px" prefWidth="38" styleClass="field-label"/>
+                            <ColorPicker fx:id="webcamBorderColorPicker" styleClass="color-picker-compact"/>
+                        </HBox>
+                        <HBox alignment="CENTER_LEFT" spacing="10">
+                            <Label text="Opacity" prefWidth="110" styleClass="field-label"/>
+                            <Slider fx:id="webcamOpacitySlider" HBox.hgrow="ALWAYS" min="50" max="100" blockIncrement="5"/>
+                            <Label fx:id="webcamOpacityLabel" text="100%" prefWidth="38" styleClass="field-label"/>
+                        </HBox>
+                    </VBox>
 
-                <HBox alignment="CENTER_LEFT" spacing="10">
-                    <Label text="Device" prefWidth="100" styleClass="field-label"/>
-                    <ComboBox fx:id="audioDeviceCombo" HBox.hgrow="ALWAYS" maxWidth="Infinity"
-                              styleClass="combo-field"/>
-                </HBox>
-            </VBox>
+                    <!-- FPS Counter -->
+                    <VBox styleClass="card" spacing="14">
+                        <padding><Insets top="18" right="20" bottom="18" left="20"/></padding>
+                        <Label text="FPS COUNTER" styleClass="section-label"/>
+                        <CheckBox fx:id="fpsCounterCheck" text="Bake FPS counter into video" styleClass="settings-check"/>
+                        <HBox alignment="CENTER_LEFT" spacing="10">
+                            <Label text="Position" prefWidth="110" styleClass="field-label"/>
+                            <ComboBox fx:id="fpsPositionCombo" HBox.hgrow="ALWAYS" maxWidth="Infinity" styleClass="combo-field"/>
+                        </HBox>
+                        <HBox alignment="CENTER_LEFT" spacing="10">
+                            <Label text="Font Size" prefWidth="110" styleClass="field-label"/>
+                            <Slider fx:id="fpsFontSizeSlider" HBox.hgrow="ALWAYS" min="12" max="48" blockIncrement="2"/>
+                            <Label fx:id="fpsFontSizeLabel" text="16 px" prefWidth="44" styleClass="field-label"/>
+                        </HBox>
+                        <HBox alignment="CENTER_LEFT" spacing="10">
+                            <Label text="Text Color" prefWidth="110" styleClass="field-label"/>
+                            <ColorPicker fx:id="fpsTextColorPicker" styleClass="color-picker-compact"/>
+                        </HBox>
+                        <HBox alignment="CENTER_LEFT" spacing="10">
+                            <CheckBox fx:id="fpsBgCheck" text="Background" prefWidth="130" styleClass="settings-check"/>
+                            <ColorPicker fx:id="fpsBgColorPicker" styleClass="color-picker-compact"/>
+                        </HBox>
+                    </VBox>
+                </VBox>
+            </ScrollPane>
+        </Tab>
 
-            <!-- ─────────────────────── HOTKEYS ────────────────────────── -->
-            <VBox styleClass="card" spacing="16">
-                <padding><Insets top="18" right="20" bottom="18" left="20"/></padding>
+        <!-- ══════════════ HOTKEYS ══════════════ -->
+        <Tab text="Hotkeys" styleClass="settings-tab">
+            <ScrollPane fitToWidth="true" styleClass="settings-scroll">
+                <VBox spacing="10">
+                    <padding><Insets top="14" right="16" bottom="14" left="16"/></padding>
+                    <VBox styleClass="card" spacing="16">
+                        <padding><Insets top="18" right="20" bottom="18" left="20"/></padding>
+                        <HBox alignment="CENTER_LEFT" spacing="8">
+                            <Label text="HOTKEYS" styleClass="section-label"/>
+                            <Label text="— click a field then press your key combination"
+                                   styleClass="section-label-hint"/>
+                        </HBox>
 
-                <HBox alignment="CENTER_LEFT" spacing="6">
-                    <Label text="HOTKEYS" styleClass="section-label"/>
-                    <Label text="(click to rebind — coming soon)" styleClass="section-label-hint"/>
-                </HBox>
+                        <HBox alignment="CENTER_LEFT" spacing="10">
+                            <Label text="Start" prefWidth="110" styleClass="field-label"/>
+                            <TextField fx:id="hotkeyStartField" HBox.hgrow="ALWAYS"
+                                       styleClass="hotkey-field" promptText="Click to set…"/>
+                        </HBox>
+                        <HBox alignment="CENTER_LEFT" spacing="10">
+                            <Label text="Stop" prefWidth="110" styleClass="field-label"/>
+                            <TextField fx:id="hotkeyStopField" HBox.hgrow="ALWAYS"
+                                       styleClass="hotkey-field" promptText="Click to set…"/>
+                        </HBox>
+                        <HBox alignment="CENTER_LEFT" spacing="10">
+                            <Label text="Pause / Resume" prefWidth="110" styleClass="field-label"/>
+                            <TextField fx:id="hotkeyPauseField" HBox.hgrow="ALWAYS"
+                                       styleClass="hotkey-field" promptText="Click to set…"/>
+                        </HBox>
+                        <HBox alignment="CENTER_LEFT" spacing="10">
+                            <Label text="Screenshot" prefWidth="110" styleClass="field-label"/>
+                            <TextField fx:id="hotkeyScreenshotField" HBox.hgrow="ALWAYS"
+                                       styleClass="hotkey-field" promptText="Click to set…"/>
+                        </HBox>
 
-                <HBox alignment="CENTER_LEFT" spacing="10">
-                    <Label text="Start" prefWidth="100" styleClass="field-label"/>
-                    <TextField fx:id="hotkeyStartField" HBox.hgrow="ALWAYS"
-                               styleClass="hotkey-field" promptText="e.g. Ctrl+Shift+R"/>
-                </HBox>
-                <HBox alignment="CENTER_LEFT" spacing="10">
-                    <Label text="Stop" prefWidth="100" styleClass="field-label"/>
-                    <TextField fx:id="hotkeyStopField" HBox.hgrow="ALWAYS"
-                               styleClass="hotkey-field" promptText="e.g. Ctrl+Shift+S"/>
-                </HBox>
-                <HBox alignment="CENTER_LEFT" spacing="10">
-                    <Label text="Pause" prefWidth="100" styleClass="field-label"/>
-                    <TextField fx:id="hotkeyPauseField" HBox.hgrow="ALWAYS"
-                               styleClass="hotkey-field" promptText="e.g. Ctrl+Shift+P"/>
-                </HBox>
-            </VBox>
+                        <Separator/>
+                        <HBox alignment="CENTER_RIGHT">
+                            <Button text="Reset to Defaults" styleClass="secondary-button"
+                                    onAction="#onResetHotkeys"/>
+                        </HBox>
+                    </VBox>
+                </VBox>
+            </ScrollPane>
+        </Tab>
 
-            <!-- ─────────────────────── THEME ──────────────────────────── -->
-            <VBox styleClass="card" spacing="16">
-                <padding><Insets top="18" right="20" bottom="18" left="20"/></padding>
+        <!-- ══════════════ APPEARANCE ══════════════ -->
+        <Tab text="Appearance" styleClass="settings-tab">
+            <ScrollPane fitToWidth="true" styleClass="settings-scroll">
+                <VBox spacing="10">
+                    <padding><Insets top="14" right="16" bottom="14" left="16"/></padding>
+                    <VBox styleClass="card" spacing="16">
+                        <padding><Insets top="18" right="20" bottom="18" left="20"/></padding>
+                        <Label text="THEME" styleClass="section-label"/>
+                        <HBox spacing="24" alignment="CENTER_LEFT">
+                            <fx:define><ToggleGroup fx:id="themeGroup"/></fx:define>
+                            <RadioButton fx:id="themeAutoRadio"  text="Auto"  toggleGroup="$themeGroup" styleClass="theme-radio"/>
+                            <RadioButton fx:id="themeDarkRadio"  text="Dark"  toggleGroup="$themeGroup" styleClass="theme-radio"/>
+                            <RadioButton fx:id="themeLightRadio" text="Light" toggleGroup="$themeGroup" styleClass="theme-radio"/>
+                        </HBox>
+                    </VBox>
+                </VBox>
+            </ScrollPane>
+        </Tab>
 
-                <Label text="APPEARANCE" styleClass="section-label"/>
+    </TabPane>
 
-                <HBox spacing="24" alignment="CENTER_LEFT">
-                    <fx:define>
-                        <ToggleGroup fx:id="themeGroup"/>
-                    </fx:define>
-                    <RadioButton fx:id="themeAutoRadio"  text="Auto"
-                                 toggleGroup="$themeGroup" styleClass="theme-radio"/>
-                    <RadioButton fx:id="themeDarkRadio"  text="Dark"
-                                 toggleGroup="$themeGroup" styleClass="theme-radio"/>
-                    <RadioButton fx:id="themeLightRadio" text="Light"
-                                 toggleGroup="$themeGroup" styleClass="theme-radio"/>
-                </HBox>
-            </VBox>
-        </VBox>
-    </ScrollPane>
-
-    <!-- ══════════════════════════ BUTTONS ══════════════════════════════════ -->
+    <!-- ══════════════════════════ FOOTER BUTTONS ═══════════════════════════ -->
     <HBox styleClass="footer settings-footer" alignment="CENTER_RIGHT" spacing="12">
         <padding><Insets top="14" right="22" bottom="14" left="22"/></padding>
-
         <Button text="Cancel" styleClass="secondary-button" onAction="#onCancel"/>
         <Button text="Save Changes" styleClass="start-button settings-save" onAction="#onSave"/>
     </HBox>

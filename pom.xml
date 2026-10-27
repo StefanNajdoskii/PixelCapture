@@ -59,8 +59,34 @@
             <version>${javacv.version}</version>
             <classifier>windows-x86_64</classifier>
         </dependency>
+<!-- OpenCV for webcam capture -->
+        <dependency>
+            <groupId>org.bytedeco</groupId>
+            <artifactId>opencv-platform</artifactId>
+            <version>4.6.0-1.5.8</version>
+        </dependency>
+        <!--
+          OpenCV: two JARs are required.
+          1. Java bindings (no classifier) — contains the JavaCPP-generated classes such as
+             org.bytedeco.opencv.opencv_core.Mat that OpenCVFrameConverter$ToMat references.
+             Without this JAR the static initializer of OpenCVFrameConverter$ToMat fails with
+             NoClassDefFoundError even though the class itself is found in javacv.jar.
+          2. Native DLLs (windows-x86_64 classifier) — the pre-built OpenCV DLLs that the
+             Java bindings load at runtime via JavaCPP's Loader.
+        -->
+        <dependency>
+            <groupId>org.bytedeco</groupId>
+            <artifactId>opencv</artifactId>
+            <version>4.9.0-${javacv.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.bytedeco</groupId>
+            <artifactId>opencv</artifactId>
+            <version>4.9.0-${javacv.version}</version>
+            <classifier>windows-x86_64</classifier>
+        </dependency>
 
-        <!-- Global hotkeys (Ctrl+Shift+R to start/stop without focus) -->
+        <!-- Global hotkeys -->
         <dependency>
             <groupId>com.github.kwhat</groupId>
             <artifactId>jnativehook</artifactId>
